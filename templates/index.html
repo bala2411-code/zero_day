@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Zero-Day Attack Detector</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #0d1117; color: #e6edf3; }
+
+    header {
+      background: #161b22;
+      padding: 20px 40px;
+      border-bottom: 1px solid #30363d;
+    }
+    header h1 { color: #58a6ff; font-size: 1.5rem; }
+    header p  { color: #8b949e; font-size: 0.85rem; margin-top: 4px; }
+
+    .container { max-width: 900px; margin: 40px auto; padding: 0 20px; }
+
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .card h2 { color: #58a6ff; margin-bottom: 16px; font-size: 1rem; }
+
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    label { display: block; font-size: 0.8rem; color: #8b949e; margin-bottom: 4px; }
+
+    input, select {
+      width: 100%; padding: 8px 12px;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      color: #e6edf3;
+      font-size: 0.9rem;
+    }
+
+    button {
+      width: 100%; padding: 12px;
+      background: #238636;
+      border: none; border-radius: 6px;
+      color: white; font-size: 1rem;
+      cursor: pointer; margin-top: 8px;
+    }
+    button:hover { background: #2ea043; }
+
+    .result-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px; margin-top: 12px;
+    }
+    .result-item {
+      background: #0d1117;
+      border-radius: 8px;
+      padding: 16px; text-align: center;
+    }
+    .result-item .label {
+      font-size: 0.75rem;
+      color: #8b949e; margin-bottom: 6px;
+    }
+    .result-item .value { font-size: 1.1rem; font-weight: bold; }
+
+    .attack  { color: #f85149; }
+    .normal  { color: #3fb950; }
+    .anomaly { color: #d29922; }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+    }
+    .badge.high      { background: #3d1f1f; color: #f85149; }
+    .badge.low       { background: #1a2e1a; color: #3fb950; }
+    .badge.confirmed { background: #3d1f1f; color: #f85149; }
+
+    .reasons {
+      margin-top: 12px;
+      background: #0d1117;
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .reasons p {
+      font-size: 0.8rem;
+      color: #8b949e;
+      margin-bottom: 4px;
+    }
+    .reasons ul {
+      padding-left: 16px;
+    }
+    .reasons li {
+      font-size: 0.85rem;
+      color: #e6edf3;
+      margin-top: 4px;
+    }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🛡️ Zero-Day Attack Detection System</h1>
+  <p>Rule-based + Statistical Anomaly Detection — No external libraries needed</p>
+</header>
+
+<div class="container">
+
+  <div class="card">
+    <h2>📡 Network Traffic Input</h2>
+    <div class="grid">
+      <div>
+        <label>Protocol Type</label>
+        <select id="protocol_type">
+          <option>tcp</option>
+          <option>udp</option>
+          <option>icmp</option>
+        </select>
+      </div>
+      <div>
+        <label>Service</label>
+        <select id="service">
+          <option>http</option>
+          <option>ftp</option>
+          <option>smtp</option>
+          <option>ssh</option>
+          <option>dns</option>
+          <option>other</option>
+        </select>
+      </div>
+      <div>
+        <label>Flag</label>
+        <select id="flag">
+          <option>SF</option>
+          <option>S0</option>
+          <option>REJ</option>
+          <option>RSTO</option>
+          <option>SH</option>
+          <option>RSTR</option>
+        </select>
+      </div>
+      <div>
+        <label>Duration (sec)</label>
+        <input type="number" id="duration" value="0">
+      </div>
+      <div>
+        <label>Source Bytes</label>
+        <input type="number" id="src_bytes" value="215">
+      </div>
+      <div>
+        <label>Destination Bytes</label>
+        <input type="number" id="dst_bytes" value="45076">
+      </div>
+      <div>
+        <label>Count</label>
+        <input type="number" id="count" value="1">
+      </div>
+      <div>
+        <label>Srv Count</label>
+        <input type="number" id="srv_count" value="1">
+      </div>
+      <div>
+        <label>Serror Rate (0 to 1)</label>
+        <input type="number" id="serror_rate" step="0.01" value="0">
+      </div>
+      <div>
+        <label>Rerror Rate (0 to 1)</label>
+        <input type="number" id="rerror_rate" step="0.01" value="0">
+      </div>
+    </div>
+    <button onclick="analyze()">🔍 Analyze Traffic</button>
+  </div>
+
+  <div class="card hidden" id="resultBox">
+    <h2>🔬 Detection Results</h2>
+    <div class="result-grid">
+      <div class="result-item">
+        <div class="label">Rule-Based Detection</div>
+        <div class="value" id="rf_result">—</div>
+      </div>
+      <div class="result-item">
+        <div class="label">Anomaly Detection</div>
+        <div class="value" id="iso_result">—</div>
+      </div>
+      <div class="result-item">
+        <div class="label">Attack Score</div>
+        <div class="value" id="confidence">—</div>
+      </div>
+      <div class="result-item">
+        <div class="label">Zero-Day Risk Level</div>
+        <div class="value" id="zero_day_risk">—</div>
+      </div>
+    </div>
+    <div class="reasons">
+      <p>🔎 Detection Reasons:</p>
+      <ul id="reasons_list"></ul>
+    </div>
+  </div>
+
+</div>
+
+<script>
+async function analyze() {
+  const fields = [
+    'protocol_type','service','flag','duration',
+    'src_bytes','dst_bytes','count','srv_count',
+    'serror_rate','rerror_rate'
+  ];
+  const data = {};
+  fields.forEach(f => {
+    const el = document.getElementById(f);
+    const v  = el.value;
+    data[f]  = isNaN(v) || v === '' ? v : parseFloat(v);
+  });
+
+  const btn = document.querySelector('button');
+  btn.textContent = '⏳ Analyzing...';
+  btn.disabled = true;
+
+  try {
+    const res    = await fetch('/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const result = await res.json();
+
+    document.getElementById('resultBox').classList.remove('hidden');
+
+    const rfEl = document.getElementById('rf_result');
+    rfEl.textContent = result.rf_result;
+    rfEl.className = 'value ' +
+      (result.rf_result.includes('ATTACK') ? 'attack' : 'normal');
+
+    const isoEl = document.getElementById('iso_result');
+    isoEl.textContent = result.iso_result;
+    isoEl.className = 'value ' +
+      (result.iso_result.includes('ANOMALY') ? 'anomaly' : 'normal');
+
+    document.getElementById('confidence').textContent = result.confidence;
+
+    const riskEl = document.getElementById('zero_day_risk');
+    const riskClass = result.zero_day_risk.toLowerCase()
+      .replace(' ', '').replace('confirmedattack', 'confirmed');
+    riskEl.innerHTML =
+      `<span class="badge ${riskClass}">${result.zero_day_risk}</span>`;
+
+    const ul = document.getElementById('reasons_list');
+    ul.innerHTML = '';
+    result.reasons.forEach(r => {
+      const li = document.createElement('li');
+      li.textContent = r;
+      ul.appendChild(li);
+    });
+
+  } catch(e) {
+    alert('Error connecting to server. Make sure app.py is running!');
+  }
+
+  btn.textContent = '🔍 Analyze Traffic';
+  btn.disabled = false;
+}
+</script>
+</body>
+</html>
